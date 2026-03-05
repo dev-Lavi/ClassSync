@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Teacher {
+  id         String              @id @default(cuid())
+  name       String
+  email      String              @unique
+  createdAt  DateTime            @default(now())
+  subjects   Subject[]
+  attendance TeacherAttendance[]
+  schedules  ClassSchedule[]
+}
+
+model ClassSection {
+  id        String          @id @default(cuid())
+  name      String
+  createdAt DateTime        @default(now())
+  schedules ClassSchedule[]
+}
+
+model Subject {
+  id        String          @id @default(cuid())
+  name      String
+  teacherId String
+  createdAt DateTime        @default(now())
+  teacher   Teacher         @relation(fields: [teacherId], references: [id])
+  schedules ClassSchedule[]
+}
+
+model TeacherAttendance {
+  id        String   @id @default(cuid())
+  teacherId String
+  date      DateTime @db.Date
+  status    String   // "Present" | "Absent" | "Leave"
+  createdAt DateTime @default(now())
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+
+  @@unique([teacherId, date])
+}
+
+model ClassSchedule {
+  id           String       @id @default(cuid())
+  dayOfWeek    String       // "Monday", "Tuesday", etc.
+  startTime    String       // "09:00"
+  endTime      String       // "10:00"
+  classId      String
+  subjectId    String
+  teacherId    String
+  status       String       @default("Scheduled") // "Scheduled" | "Cancelled"
+  createdAt    DateTime     @default(now())
+  classSection ClassSection @relation(fields: [classId], references: [id])
+  subject      Subject      @relation(fields: [subjectId], references: [id])
+  teacher      Teacher      @relation(fields: [teacherId], references: [id])
+}

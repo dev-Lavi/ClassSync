@@ -1,0 +1,433 @@
+{
+    "info": {
+        "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "name": "Class Schedule System API",
+        "description": "Complete API collection for the Class Schedule Management System.\n\nBase URL: {{baseUrl}} (default: http://localhost:3000)",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:3000",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Teachers",
+            "item": [
+                {
+                    "name": "List All Teachers",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/teachers",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "teachers"
+                            ]
+                        },
+                        "description": "Returns all teachers with subject count and schedule count."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Teacher",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Ms. Sarah Johnson\",\n  \"email\": \"sarah.johnson@school.edu\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/teachers",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "teachers"
+                            ]
+                        },
+                        "description": "Create a new teacher. Email must be unique."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Teacher by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/teachers/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "teachers",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "TEACHER_ID_HERE"
+                                }
+                            ]
+                        },
+                        "description": "Get a single teacher with their subjects, attendance history, and schedules."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Teacher",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Ms. Sarah Williams\",\n  \"email\": \"sarah.williams@school.edu\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/teachers/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "teachers",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "TEACHER_ID_HERE"
+                                }
+                            ]
+                        },
+                        "description": "Update teacher name and/or email."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete Teacher",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/teachers/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "teachers",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "TEACHER_ID_HERE"
+                                }
+                            ]
+                        },
+                        "description": "Delete teacher and cascade delete their subjects, schedules, and attendance records."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Attendance",
+            "item": [
+                {
+                    "name": "Mark Attendance",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"teacherId\": \"TEACHER_ID_HERE\",\n  \"date\": \"2026-03-05\",\n  \"status\": \"Present\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/attendance",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "attendance"
+                            ]
+                        },
+                        "description": "Mark or update teacher attendance. Uses upsert — safe to call multiple times for the same teacher+date. Status: 'Present' | 'Absent' | 'Leave'"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Attendance by Date",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/attendance?date=2026-03-05",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "attendance"
+                            ],
+                            "query": [
+                                {
+                                    "key": "date",
+                                    "value": "2026-03-05"
+                                }
+                            ]
+                        },
+                        "description": "Get all teachers with their attendance status for the given date. Teachers without a record show 'Not Marked'."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Subjects",
+            "item": [
+                {
+                    "name": "List All Subjects",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/subjects",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "subjects"
+                            ]
+                        },
+                        "description": "Returns all subjects with teacher info and schedule count."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Subject",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Biology\",\n  \"teacherId\": \"TEACHER_ID_HERE\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/subjects",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "subjects"
+                            ]
+                        },
+                        "description": "Create a subject and assign it to a teacher."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Schedules",
+            "item": [
+                {
+                    "name": "List All Schedules",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/schedules",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "schedules"
+                            ]
+                        },
+                        "description": "Returns all schedule entries without dynamic status annotation."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Schedule Entry",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"dayOfWeek\": \"Monday\",\n  \"startTime\": \"09:00\",\n  \"endTime\": \"10:00\",\n  \"classId\": \"CLASS_SECTION_ID_HERE\",\n  \"subjectId\": \"SUBJECT_ID_HERE\",\n  \"teacherId\": \"TEACHER_ID_HERE\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/schedules",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "schedules"
+                            ]
+                        },
+                        "description": "Create a new schedule entry for a specific day of week."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Day View — Get Schedules by Date",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/schedules/day?view=day&date=2026-03-05",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "schedules",
+                                "day"
+                            ],
+                            "query": [
+                                {
+                                    "key": "view",
+                                    "value": "day"
+                                },
+                                {
+                                    "key": "date",
+                                    "value": "2026-03-05"
+                                }
+                            ]
+                        },
+                        "description": "Get all schedules for a specific date with dynamic status: checks teacher attendance and returns 'Cancelled' if teacher is Absent or on Leave."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Week View — Get Schedules by Week",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/schedules/week?view=week&start=2026-03-02",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "schedules",
+                                "week"
+                            ],
+                            "query": [
+                                {
+                                    "key": "view",
+                                    "value": "week"
+                                },
+                                {
+                                    "key": "start",
+                                    "value": "2026-03-02"
+                                }
+                            ]
+                        },
+                        "description": "Get schedules grouped by day for the week starting on the given Monday. Each entry includes dynamicStatus from attendance records."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Month View — Get Schedules by Month",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/schedules/month?view=month&month=2026-03",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "schedules",
+                                "month"
+                            ],
+                            "query": [
+                                {
+                                    "key": "view",
+                                    "value": "month"
+                                },
+                                {
+                                    "key": "month",
+                                    "value": "2026-03"
+                                }
+                            ]
+                        },
+                        "description": "Get all weekday schedules for a month. Each day includes cancelled/total counts and per-schedule dynamicStatus."
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ]
+}

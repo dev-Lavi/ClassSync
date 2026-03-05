@@ -1,0 +1,348 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design Tokens ────────────────────────────────────────────────────────── */
+:root {
+  --bg-base: #F5F4F0;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-dark: #1A3C34;
+  --accent-orange: #F5A623;
+  --accent-orange-light: #FBBF5A;
+  --accent-green: #1A6B4A;
+  --accent-green-dark: #0F4D35;
+  --text-primary: #1A1A1A;
+  --text-muted: #7A7A6E;
+  --border: rgba(255, 255, 255, 0.6);
+  --radius: 0.75rem;
+
+  /* Shadcn CSS vars */
+  --background: 45 20% 96%;
+  --foreground: 0 0% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 10%;
+  --primary: 158 60% 26%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 20% 94%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 45 20% 92%;
+  --muted-foreground: 45 5% 47%;
+  --accent: 36 90% 55%;
+  --accent-foreground: 0 0% 10%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 45 15% 88%;
+  --input: 45 15% 88%;
+  --ring: 158 60% 26%;
+}
+
+/* ── Base Reset ───────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ── Typography ───────────────────────────────────────────────────────────── */
+h1, h2, h3, .font-display {
+  font-family: 'DM Serif Display', serif;
+}
+
+/* ── Glass Card ───────────────────────────────────────────────────────────── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 24px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.glass-card-sm {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+/* ── Gradient Cards ───────────────────────────────────────────────────────── */
+.gradient-card-orange {
+  background: linear-gradient(135deg, #FBBF5A 0%, #F5A623 50%, #E8922A 100%);
+  border-radius: 24px;
+  box-shadow: 0 16px 48px rgba(245, 166, 35, 0.35);
+}
+
+.gradient-card-green {
+  background: linear-gradient(135deg, #1A6B4A 0%, #0F4D35 60%, #0A3828 100%);
+  border-radius: 24px;
+  box-shadow: 0 16px 48px rgba(26, 107, 74, 0.35);
+}
+
+/* ── Background Blobs ─────────────────────────────────────────────────────── */
+.bg-blob-amber {
+  position: absolute;
+  top: -120px;
+  right: -100px;
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, rgba(251, 191, 90, 0.28) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-blob-green {
+  position: absolute;
+  bottom: -120px;
+  left: -100px;
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(26, 107, 74, 0.18) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Grain texture overlay ─────────────────────────────────────────────────── */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px;
+}
+
+/* ── Pill Buttons ─────────────────────────────────────────────────────────── */
+.btn-pill-green {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 22px;
+  background: #1A3C34;
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  text-decoration: none;
+}
+
+.btn-pill-green:hover {
+  transform: scale(1.03);
+  box-shadow: 0 8px 24px rgba(26, 60, 52, 0.3);
+}
+
+.btn-pill-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 22px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #1A1A1A;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  text-decoration: none;
+}
+
+.btn-pill-ghost:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Animations ───────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.5s ease forwards;
+}
+
+.animate-delay-80 { animation-delay: 80ms; }
+.animate-delay-160 { animation-delay: 160ms; }
+.animate-delay-240 { animation-delay: 240ms; }
+.animate-delay-320 { animation-delay: 320ms; }
+
+/* ── Frosted Navbar ───────────────────────────────────────────────────────── */
+.navbar-glass {
+  background: rgba(255, 255, 255, 0.80);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* ── Status Badges ────────────────────────────────────────────────────────── */
+.badge-present {
+  background: rgba(26, 107, 74, 0.12);
+  color: #0F4D35;
+  border: 1px solid rgba(26, 107, 74, 0.3);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-absent {
+  background: rgba(239, 68, 68, 0.12);
+  color: #991b1b;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-leave {
+  background: rgba(245, 166, 35, 0.15);
+  color: #92580D;
+  border: 1px solid rgba(245, 166, 35, 0.4);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-cancelled {
+  background: rgba(239, 68, 68, 0.10);
+  color: #991b1b;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-scheduled {
+  background: rgba(26, 107, 74, 0.10);
+  color: #0F4D35;
+  border: 1px solid rgba(26, 107, 74, 0.25);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ── Input styles ─────────────────────────────────────────────────────────── */
+.input-floating {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 200ms, box-shadow 200ms;
+}
+
+.input-floating:focus {
+  border-color: #1A6B4A;
+  box-shadow: 0 0 0 3px rgba(26, 107, 74, 0.12);
+}
+
+/* ── Schedule time block ──────────────────────────────────────────────────── */
+.schedule-block {
+  border-radius: 12px;
+  padding: 10px 14px;
+  transition: transform 150ms ease;
+}
+
+.schedule-block:hover {
+  transform: translateY(-2px);
+}
+
+.schedule-block-cancelled {
+  opacity: 0.6;
+  filter: grayscale(0.3);
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+/* ── react-day-picker custom ──────────────────────────────────────────────── */
+.rdp {
+  --rdp-accent-color: #1A6B4A;
+  --rdp-background-color: rgba(26, 107, 74, 0.10);
+  --rdp-accent-color-dark: #0F4D35;
+  --rdp-outline: 2px solid #1A6B4A;
+  --rdp-outline-selected: 2px solid #1A6B4A;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.rdp-day_selected {
+  background-color: #1A3C34 !important;
+  color: white !important;
+  border-radius: 10px !important;
+}
+
+.rdp-day:hover:not([disabled]) {
+  background-color: rgba(26, 107, 74, 0.12) !important;
+  border-radius: 10px !important;
+}
