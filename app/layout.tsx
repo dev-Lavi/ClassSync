@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Link from "next/link";
-import { BookOpen, Users, CalendarCheck, LayoutDashboard } from "lucide-react";
+import { BookOpen, Users, CalendarCheck, LayoutDashboard, GraduationCap, CalendarPlus } from "lucide-react";
 
 export const metadata: Metadata = {
     title: "Class Schedule System",
@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 const navLinks = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/teachers", label: "Teachers", icon: Users },
+    { href: "/subjects", label: "Subjects", icon: GraduationCap },
     { href: "/attendance", label: "Attendance", icon: CalendarCheck },
     { href: "/schedules", label: "Schedules", icon: BookOpen },
 ];
@@ -65,10 +66,16 @@ export default function RootLayout({
                             ))}
                         </nav>
 
-                        {/* CTA */}
-                        <Link href="/teachers/add" className="btn-pill-green">
-                            + Add Teacher
-                        </Link>
+                        {/* Quick-add CTAs */}
+                        <div className="hidden md:flex items-center gap-2">
+                            <Link href="/schedules/add" className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:bg-black/5" style={{ border: "1.5px solid rgba(0,0,0,0.12)", color: "#1A1A1A" }}>
+                                <CalendarPlus className="w-4 h-4" />
+                                Add Schedule
+                            </Link>
+                            <Link href="/teachers/add" className="btn-pill-green">
+                                + Add Teacher
+                            </Link>
+                        </div>
                     </div>
                 </header>
 
