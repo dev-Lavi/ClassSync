@@ -170,7 +170,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 git init
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/your-username/class-schedule-system.git
+git remote add origin https://github.com/dev-Lavi/class-schedule-system.git
 git push -u origin main
 ```
 
