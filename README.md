@@ -1,18 +1,21 @@
-# 📅 Class Schedule Management System
+# 📅 ClassSync — Class Schedule Management System
 
-A full-stack school timetable management application built with **Next.js 14**, **Prisma ORM**, **PostgreSQL** (Supabase), **Tailwind CSS**, and a Neo-Apple glassy design system.
+A full-stack school timetable management application built with **Next.js 14**, **Prisma ORM**, **PostgreSQL** (Supabase), and a custom glassy design system.
 
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template)
 
 ---
 
 ## 📖 Project Overview
 
 ClassSync lets school administrators:
+
 - **Manage teachers** with subjects assigned per teacher
 - **Mark daily attendance** — `Present`, `Absent`, or `Leave`
-- **View class schedules** by Day, Week, or Month
-- **Auto-cancel classes** when the assigned teacher is absent or on leave (computed at query time, no DB mutation)
+- **Auto-assign substitutes** — when a teacher is absent, the system instantly finds a qualified, conflict-free replacement teacher
+- **View class schedules** by Day, Week, or Month with live status badges
+- **Manage substitutions** — manual override for cases where no substitute is found automatically
+- **Track subjects** — create subjects and link them to teachers
 
 ---
 
@@ -23,27 +26,41 @@ ClassSync lets school administrators:
 | Framework | Next.js 14 App Router |
 | Language | TypeScript |
 | ORM | Prisma 5 |
-| Database | PostgreSQL (Supabase free tier) |
-| Styling | Tailwind CSS + Custom CSS |
-| UI Library | Shadcn/UI + Radix UI |
+| Database | PostgreSQL (Supabase) |
+| Styling | Tailwind CSS + Custom CSS Design System |
 | Calendar | react-day-picker |
 | Date utils | date-fns |
-| Hosting | Vercel (free tier) |
-| DB Hosting | Supabase / Neon (free tier) |
+| Icons | lucide-react |
+| Deployment | Railway / Fly.io / Vercel |
 
 ---
 
-## 🧠 Assumptions
+## 🧠 Architecture Decisions
 
-### Why "Cancelled" instead of "Substitute" or "Empty"?
+### Auto-Substitution System
 
-When a teacher is marked **Absent** or **Leave**, their classes are displayed as **"Cancelled"** rather than:
+When a teacher is marked **Absent** or **Leave**, the system automatically:
 
-- **Substitute**: Implementing substitute logic would require a full substitute teacher assignment system (assigning a free teacher, checking their own schedule and availability). This adds significant complexity beyond the scope of this system and would require additional data modelling (`SubstituteAssignment` entity), UI flows, and business rules. The current architecture is designed to be extended with this feature later.
+1. Finds all classes scheduled for that teacher on that day of week
+2. For each affected class, searches for a substitute teacher who:
+   - Teaches the **same subject** (via `Subject` relation)
+   - Is **not absent/leave** on that date
+   - Has **no schedule conflict** (no existing class at the same time slot)
+   - Has **no existing substitute assignment** at that time
+3. Creates a `SubstituteAssignment` record:
+   - `status: "Assigned"` — substitute found, schedule shows teal "Substituted" badge
+   - `status: "NeedsManual"` — no qualified substitute available, shows amber "⚠ Assign" badge
+4. Returns results inline in the API response for immediate UI feedback
 
-- **Empty / Hide**: Hiding cancelled classes loses important information. Administrators need to see *which* classes are affected, so they can take action (e.g., notify students, assign substitutes manually). Showing the slot as "Cancelled" communicates clearly that a class *exists but won't run today*.
+When the teacher is changed back to **Present**, all substitute assignments for that date are cleared.
 
-**Decision**: "Cancelled" is the informationally complete, low-complexity, and honest representation of the state. It is computed **dynamically at query time** — the `ClassSchedule` record in the database is NOT mutated. This preserves the permanent schedule while surfacing the daily operational reality through the API response's `dynamicStatus` field.
+### Dynamic Status (no DB mutation)
+
+`ClassSchedule` records in the database are **never mutated** when classes are cancelled or substituted. Instead, `dynamicStatus` is computed at query time in `lib/scheduleLogic.ts` using two bulk queries:
+- One for attendance records on the date
+- One for substitute assignments for the schedule IDs
+
+This preserves the permanent timetable while surfacing daily operational reality through the API.
 
 ---
 
@@ -55,25 +72,23 @@ erDiagram
         String id PK
         String name
         String email UK
-        DateTime createdAt
-    }
-    ClassSection {
-        String id PK
-        String name
+        Json availability
         DateTime createdAt
     }
     Subject {
         String id PK
         String name
         String teacherId FK
-        DateTime createdAt
+    }
+    ClassSection {
+        String id PK
+        String name
     }
     TeacherAttendance {
         String id PK
         String teacherId FK
-        DateTime date
+        Date date
         String status
-        DateTime createdAt
     }
     ClassSchedule {
         String id PK
@@ -83,15 +98,25 @@ erDiagram
         String classId FK
         String subjectId FK
         String teacherId FK
+    }
+    SubstituteAssignment {
+        String id PK
+        Date date
+        String scheduleId FK
+        String originalTeacherId FK
+        String substituteTeacherId FK
         String status
-        DateTime createdAt
+        String note
     }
 
     Teacher ||--o{ Subject : "teaches"
     Teacher ||--o{ TeacherAttendance : "has"
     Teacher ||--o{ ClassSchedule : "assigned to"
+    Teacher ||--o{ SubstituteAssignment : "original"
+    Teacher ||--o{ SubstituteAssignment : "substitute"
     Subject ||--o{ ClassSchedule : "scheduled in"
     ClassSection ||--o{ ClassSchedule : "holds"
+    ClassSchedule ||--o{ SubstituteAssignment : "has"
 ```
 
 ---
@@ -101,8 +126,8 @@ erDiagram
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/class-schedule-system.git
-cd class-schedule-system
+git clone https://github.com/dev-Lavi/ClassSync.git
+cd ClassSync
 ```
 
 ### 2. Install Dependencies
@@ -113,136 +138,107 @@ npm install
 
 ### 3. Set Up Supabase (PostgreSQL)
 
-#### Create a Supabase Project
-
-1. Go to [supabase.com](https://supabase.com) → **Sign in** → **New project**
-2. Choose a name, strong password, and nearest region
-3. Wait for the project to initialise (~1 minute)
-
-#### Get Your Connection Strings
-
-1. In your Supabase dashboard → **Settings** → **Database**
-2. Under **Connection string**, select **URI**
-3. Copy the **Pooling** connection string (port `6543`) → this is your `DATABASE_URL`
-4. Copy the **Direct** connection string (port `5432`) → this is your `DIRECT_URL`
-
-> ⚠️ **Neon alternative**: Go to [neon.tech](https://neon.tech), create a project, and use the pooled connection string as `DATABASE_URL` and the direct string as `DIRECT_URL`.
+1. Go to [supabase.com](https://supabase.com) → **New project**
+2. In **Settings → Database → Connection string**:
+   - Copy **Pooling** connection (port `6543`) → `DATABASE_URL`
+   - Copy **Direct** connection (port `5432`) → `DIRECT_URL`
 
 ### 4. Configure Environment Variables
 
-Edit `.env.local`:
+Create `.env.local`:
 
 ```env
-DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+DATABASE_URL="postgresql://postgres.YOURREF:PASSWORD@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.YOURREF:PASSWORD@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
 ```
 
-Replace `[PASSWORD]` and `[PROJECT-REF]` with your actual values.
-
-### 5. Push the Schema and Seed the Database
+### 5. Push Schema and Seed
 
 ```bash
-# Generate Prisma client
 npx prisma generate
-
-# Push schema to database (creates tables)
 npx prisma db push
-
-# Seed with sample data (5 teachers, 3 classes, 6 subjects, 16 schedules)
 npx tsx prisma/seed.ts
 ```
 
-### 6. Run the Development Server
+### 6. Run Dev Server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## ☁️ Vercel Deployment
+## ☁️ Deployment
 
-### Step 1: Push to GitHub
+### Railway (Recommended)
+
+1. Push to GitHub
+2. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
+3. Add environment variables: `DATABASE_URL`, `DIRECT_URL`
+4. Railway auto-detects Next.js and deploys
+
+The `railway.toml` is pre-configured. The `docker-entrypoint.sh` runs `prisma migrate deploy` before starting the server.
+
+### Fly.io
 
 ```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/dev-Lavi/class-schedule-system.git
-git push -u origin main
+fly launch
+fly secrets set DATABASE_URL="..." DIRECT_URL="..."
+fly deploy
 ```
 
-### Step 2: Deploy to Vercel
-
-1. Go to [vercel.com](https://vercel.com) → **New Project**
-2. Import your GitHub repository
-3. In **Environment Variables**, add:
-   - `DATABASE_URL` — your Supabase pooled connection string
-   - `DIRECT_URL` — your Supabase direct connection string
-4. Click **Deploy**
-
-> **Note**: Prisma generates the client at build time. Vercel runs `prisma generate` automatically via the `postinstall` script if you add it, or you can add it to the build command: `npx prisma generate && next build`.
-
-### Vercel Build Command (optional override)
-
-```
-npx prisma generate && next build
-```
+The `fly.toml` is pre-configured for the Singapore (`sin`) region.
 
 ---
 
-## 📡 API Documentation
+## 📡 API Reference
 
 ### Teachers
-
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| `GET` | `/api/teachers` | — | List all teachers with subject & schedule counts |
-| `POST` | `/api/teachers` | `{name, email}` | Create a new teacher |
-| `GET` | `/api/teachers/:id` | — | Get teacher + subjects + attendance history |
-| `PUT` | `/api/teachers/:id` | `{name?, email?}` | Update teacher fields |
-| `DELETE` | `/api/teachers/:id` | — | Delete teacher (cascades subjects, schedules, attendance) |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/teachers` | List all teachers |
+| `POST` | `/api/teachers` | Create teacher `{name, email}` |
+| `PUT` | `/api/teachers/:id` | Update teacher |
+| `DELETE` | `/api/teachers/:id` | Delete teacher |
 
 ### Attendance
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/attendance` | Mark attendance `{teacherId, date, status}` — triggers auto-substitution |
+| `GET` | `/api/attendance?date=YYYY-MM-DD` | Get all teacher statuses for a date |
 
-| Method | Endpoint | Body / Params | Description |
-|--------|----------|------|-------------|
-| `POST` | `/api/attendance` | `{teacherId, date, status}` | Mark/update attendance (upsert). Status: `Present` \| `Absent` \| `Leave` |
-| `GET` | `/api/attendance?date=YYYY-MM-DD` | `?date=` | Get all teachers + their status for a date |
+### Substitutions
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/substitutions` | List all substitution records |
+| `GET` | `/api/substitutions?date=YYYY-MM-DD` | Filter by date |
+| `PATCH` | `/api/substitutions/:id` | Manually assign substitute `{substituteTeacherId}` |
 
 ### Subjects
-
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| `GET` | `/api/subjects` | — | List all subjects with teacher info |
-| `POST` | `/api/subjects` | `{name, teacherId}` | Create subject assigned to a teacher |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/subjects` | List all subjects with teacher info |
+| `POST` | `/api/subjects` | Create subject `{name, teacherId}` |
+| `DELETE` | `/api/subjects/:id` | Delete subject |
 
 ### Schedules
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/schedules` | All schedule entries (static) |
+| `POST` | `/api/schedules` | Create entry `{dayOfWeek, startTime, endTime, classId, subjectId, teacherId}` |
+| `GET` | `/api/schedules/day?view=day&date=YYYY-MM-DD` | Day view with `dynamicStatus` |
+| `GET` | `/api/schedules/week?view=week&start=YYYY-MM-DD` | Week view grouped by day |
+| `GET` | `/api/schedules/month?view=month&month=YYYY-MM` | Month view |
 
-| Method | Endpoint | Body / Params | Description |
-|--------|----------|------|-------------|
-| `GET` | `/api/schedules` | — | List all schedule entries (no dynamic status) |
-| `POST` | `/api/schedules` | `{dayOfWeek, startTime, endTime, classId, subjectId, teacherId}` | Create a schedule entry |
-| `GET` | `/api/schedules/[view]?view=day&date=YYYY-MM-DD` | — | Day view with dynamic attendance-based status |
-| `GET` | `/api/schedules/[view]?view=week&start=YYYY-MM-DD` | — | Week view grouped by day |
-| `GET` | `/api/schedules/[view]?view=month&month=YYYY-MM` | — | Month view across all weekdays |
-
-#### Dynamic Status Logic
-
-All schedule view endpoints (`/api/schedules/[view]`) return a `dynamicStatus` field per entry:
-
-- If teacher has `status = "Absent"` or `status = "Leave"` on that date → `dynamicStatus = "Cancelled"`
-- If teacher has `status = "Present"` or **no record** → `dynamicStatus = "Scheduled"`
-
----
-
-## 📮 Postman Collection
-
-Import `/postman/class-schedule-api.json` into Postman.
-
-Set the `{{baseUrl}}` environment variable to `http://localhost:3000` (local) or your Vercel URL (production).
+#### `dynamicStatus` values
+| Value | Meaning |
+|---|---|
+| `Scheduled` | Teacher present, class runs normally |
+| `Substituted` | Teacher absent, substitute auto-assigned |
+| `NeedsManual` | Teacher absent, no qualified substitute found |
+| `Cancelled` | Teacher absent, no substitute assignment exists |
 
 ---
 
@@ -253,7 +249,7 @@ Running `npx tsx prisma/seed.ts` creates:
 - **3 class sections**: Class 9A, Class 10B, Class 11C
 - **6 subjects**: Mathematics, Physics, English Literature, History, Chemistry, Computer Science
 - **16 schedule entries** across Monday–Friday
-- **25 attendance records** for the week of March 2–6, 2026 (including some Absent/Leave to demonstrate cancellation logic)
+- **25 attendance records** for week of March 2–6, 2026
 
 ---
 
@@ -263,25 +259,38 @@ Running `npx tsx prisma/seed.ts` creates:
 class-schedule-system/
 ├── app/
 │   ├── layout.tsx              # Root layout with nav
-│   ├── page.tsx                # Dashboard (bento grid)
-│   ├── globals.css             # Design system + Tailwind
+│   ├── page.tsx                # Dashboard
+│   ├── globals.css             # Design system tokens + CSS
+│   ├── attendance/             # Daily attendance page
 │   ├── teachers/               # Teacher list + add form
-│   ├── attendance/             # Daily attendance marking
-│   ├── schedules/              # Day/Week/Month views
-│   └── api/                    # REST API routes (Prisma)
+│   ├── subjects/               # Subject management
+│   ├── schedules/              # Day/Week/Month views + Add Schedule
+│   ├── substitutions/          # Substitution history + manual assign
+│   └── api/                    # All REST API routes
+│       ├── attendance/
+│       ├── teachers/
+│       ├── subjects/
+│       ├── schedules/
+│       ├── substitutions/
+│       └── class-sections/
 ├── components/
-│   ├── TeacherForm.tsx
-│   ├── AttendanceTable.tsx
-│   └── ScheduleCalendar.tsx
+│   ├── AttendanceTable.tsx     # Teacher rows + inline sub banners
+│   ├── TeacherForm.tsx         # Add teacher form
+│   └── ScheduleCalendar.tsx    # Day picker calendar
 ├── lib/
 │   ├── prisma.ts               # Singleton Prisma client
-│   ├── utils.ts                # Date helpers + color utils
-│   └── scheduleLogic.ts        # Attendance-based status logic
+│   ├── utils.ts                # Helpers + colour utils
+│   ├── scheduleLogic.ts        # Bulk status annotator
+│   └── substitutionLogic.ts   # Auto-substitution engine
 ├── prisma/
-│   ├── schema.prisma           # DB models
-│   └── seed.ts                 # Sample data
-└── postman/
-    └── class-schedule-api.json # Postman collection
+│   ├── schema.prisma
+│   ├── seed.ts
+│   └── migrations/
+├── Dockerfile                  # Multi-stage production image
+├── docker-compose.yml
+├── docker-entrypoint.sh        # Runs migrate deploy then starts server
+├── railway.toml
+└── fly.toml
 ```
 
 ---
@@ -289,9 +298,10 @@ class-schedule-system/
 ## 🧪 Development Commands
 
 ```bash
-npm run dev          # Start dev server
-npm run build        # Build production bundle
-npx prisma studio    # Open Prisma Studio (DB GUI)
-npx prisma db push   # Push schema changes
-npx tsx prisma/seed.ts  # Re-seed database
+npm run dev              # Start dev server (localhost:3000)
+npm run build            # Production build
+npx prisma studio        # GUI database browser
+npx prisma db push       # Sync schema (dev)
+npx prisma migrate deploy # Apply migrations (production)
+npx tsx prisma/seed.ts   # Re-seed database
 ```

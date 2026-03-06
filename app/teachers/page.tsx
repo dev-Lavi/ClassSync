@@ -142,7 +142,7 @@ export default function TeachersPage() {
                                     {/* Avatar */}
                                     <div
                                         className="w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center text-sm font-bold"
-                                        style={colors}
+                                        style={{ background: colors.bg, color: colors.text }}
                                     >
                                         {getInitials(teacher.name)}
                                     </div>

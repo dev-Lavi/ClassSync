@@ -14,6 +14,13 @@ export interface AnnotatedSchedule {
     substituteAssignmentId?: string;
 }
 
+interface SubAssignmentRecord {
+    id: string;
+    scheduleId: string;
+    status: string;
+    substituteTeacher: { id: string; name: string } | null;
+}
+
 /**
  * Bulk-annotates schedules with dynamic status for a given date.
  *
@@ -22,10 +29,10 @@ export interface AnnotatedSchedule {
  *  2. Fetch all substitute assignments for the schedule IDs + date
  *
  * Status hierarchy:
- *  Teacher Present / no record → "Scheduled"
- *  Teacher Absent/Leave + sub assigned → "Substituted"
- *  Teacher Absent/Leave + no available sub → "NeedsManual"
- *  Teacher Absent/Leave + no assignment record → "Cancelled"
+ *  Teacher Present / no record  → "Scheduled"
+ *  Teacher Absent/Leave + sub   → "Substituted"
+ *  Teacher Absent/Leave + none available → "NeedsManual"
+ *  Teacher Absent/Leave + no assignment → "Cancelled"
  */
 export async function annotateSchedulesWithStatus<
     T extends { id: string; teacherId: string }
@@ -37,25 +44,28 @@ export async function annotateSchedulesWithStatus<
 
     const dateOnly = new Date(format(date, "yyyy-MM-dd") + "T00:00:00.000Z");
     const scheduleIds = schedules.map((s) => s.id);
-    const teacherIds = [...new Set(schedules.map((s) => s.teacherId))];
+    const teacherIds = Array.from(new Set(schedules.map((s) => s.teacherId)));
 
     // Query 1: attendance for all teachers on this date
     const attendanceRecords = await prisma.teacherAttendance.findMany({
         where: { teacherId: { in: teacherIds }, date: dateOnly },
         select: { teacherId: true, status: true },
     });
-    const attendanceMap = new Map(
+    const attendanceMap = new Map<string, string>(
         attendanceRecords.map((r) => [r.teacherId, r.status])
     );
 
     // Query 2: substitution assignments for all schedules on this date
-    const subAssignments = await prisma.substituteAssignment.findMany({
+    const rawSubs = await prisma.substituteAssignment.findMany({
         where: { scheduleId: { in: scheduleIds }, date: dateOnly },
         include: {
             substituteTeacher: { select: { id: true, name: true } },
         },
     });
-    const subMap = new Map(subAssignments.map((sa) => [sa.scheduleId, sa]));
+    const subAssignments = rawSubs as SubAssignmentRecord[];
+    const subMap = new Map<string, SubAssignmentRecord>(
+        subAssignments.map((sa) => [sa.scheduleId, sa])
+    );
 
     return schedules.map((schedule) => {
         const attendanceStatus = attendanceMap.get(schedule.teacherId);

@@ -85,7 +85,7 @@ export async function autoAssignSubstitutes(
         // Find teachers who teach the same subject (excluding unavailable ones)
         const candidates = await prisma.teacher.findMany({
             where: {
-                id: { notIn: [...excludedIds] },
+                id: { notIn: Array.from(excludedIds) },
                 subjects: { some: { name: subjectName } },
             },
             include: {
