@@ -111,9 +111,17 @@ const SUBJECT_COLORS = [
     { bg: "rgba(236,72,153,0.12)", border: "#ec4899", text: "#9d174d" },
     { bg: "rgba(14,165,233,0.12)", border: "#0ea5e9", text: "#0369a1" },
     { bg: "rgba(168,85,247,0.12)", border: "#a855f7", text: "#6b21a8" },
-];
+] as const;
 
-export function getSubjectColor(index: number) {
+export type SubjectColor = { bg: string; border: string; text: string };
+
+export function getSubjectColor(indexOrId: number | string): SubjectColor {
+    const index =
+        typeof indexOrId === "number"
+            ? indexOrId
+            : indexOrId
+                  .split("")
+                  .reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return SUBJECT_COLORS[index % SUBJECT_COLORS.length];
 }
 
