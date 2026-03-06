@@ -9,13 +9,16 @@ datasource db {
 }
 
 model Teacher {
-  id         String              @id @default(cuid())
-  name       String
-  email      String              @unique
-  createdAt  DateTime            @default(now())
-  subjects   Subject[]
-  attendance TeacherAttendance[]
-  schedules  ClassSchedule[]
+  id             String                 @id @default(cuid())
+  name           String
+  email          String                 @unique
+  availability   Json?
+  createdAt      DateTime               @default(now())
+  subjects       Subject[]
+  attendance     TeacherAttendance[]
+  schedules      ClassSchedule[]
+  originalSubs   SubstituteAssignment[] @relation("OriginalTeacher")
+  substituteSubs SubstituteAssignment[] @relation("SubstituteTeacher")
 }
 
 model ClassSection {
@@ -38,7 +41,7 @@ model TeacherAttendance {
   id        String   @id @default(cuid())
   teacherId String
   date      DateTime @db.Date
-  status    String   // "Present" | "Absent" | "Leave"
+  status    String
   createdAt DateTime @default(now())
   teacher   Teacher  @relation(fields: [teacherId], references: [id])
 
@@ -46,16 +49,35 @@ model TeacherAttendance {
 }
 
 model ClassSchedule {
-  id           String       @id @default(cuid())
-  dayOfWeek    String       // "Monday", "Tuesday", etc.
-  startTime    String       // "09:00"
-  endTime      String       // "10:00"
-  classId      String
-  subjectId    String
-  teacherId    String
-  status       String       @default("Scheduled") // "Scheduled" | "Cancelled"
-  createdAt    DateTime     @default(now())
-  classSection ClassSection @relation(fields: [classId], references: [id])
-  subject      Subject      @relation(fields: [subjectId], references: [id])
-  teacher      Teacher      @relation(fields: [teacherId], references: [id])
+  id            String                 @id @default(cuid())
+  dayOfWeek     String
+  startTime     String
+  endTime       String
+  classId       String
+  subjectId     String
+  teacherId     String
+  status        String                 @default("Scheduled")
+  createdAt     DateTime               @default(now())
+  classSection  ClassSection           @relation(fields: [classId], references: [id])
+  subject       Subject                @relation(fields: [subjectId], references: [id])
+  teacher       Teacher                @relation(fields: [teacherId], references: [id])
+  substitutions SubstituteAssignment[]
+}
+
+model SubstituteAssignment {
+  id                  String        @id @default(cuid())
+  date                DateTime      @db.Date
+  scheduleId          String
+  originalTeacherId   String
+  substituteTeacherId String?
+  status              String        @default("Pending")
+  note                String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  schedule          ClassSchedule @relation(fields: [scheduleId], references: [id])
+  originalTeacher   Teacher       @relation("OriginalTeacher", fields: [originalTeacherId], references: [id])
+  substituteTeacher Teacher?      @relation("SubstituteTeacher", fields: [substituteTeacherId], references: [id])
+
+  @@unique([scheduleId, date])
 }

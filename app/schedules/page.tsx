@@ -23,6 +23,9 @@ interface ScheduleEntry {
     subject: { id: string; name: string };
     classSection: { id: string; name: string };
     teacher: { id: string; name: string };
+    substituteTeacherName?: string;
+    substituteTeacherId?: string;
+    substituteAssignmentId?: string;
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -84,46 +87,54 @@ export default function SchedulesPage() {
         setWeekStart((d) => addDays(d, 7));
     }
 
-    const ScheduleBlock = ({
-        s,
-        idx,
-    }: {
-        s: ScheduleEntry;
-        idx: number;
-    }) => {
+    const ScheduleBlock = ({ s, idx }: { s: ScheduleEntry; idx: number }) => {
         const colors = getSubjectColor(idx);
-        const isCancelled = s.dynamicStatus === "Cancelled";
+        const status = s.dynamicStatus;
+
+        const styleMap: Record<string, { bg: string; border: string; textColor: string; iconColor: string; badge: string; badgeLabel: string; dim: boolean }> = {
+            Cancelled: { bg: "rgba(239,68,68,0.07)", border: "#ef4444", textColor: "#991b1b", iconColor: "#ef4444", badge: "badge-cancelled", badgeLabel: "Cancelled", dim: true },
+            Substituted: { bg: "rgba(6,182,212,0.09)", border: "rgba(6,182,212,0.4)", textColor: "#0e7490", iconColor: "#06b6d4", badge: "badge-substituted", badgeLabel: "Substituted", dim: false },
+            NeedsManual: { bg: "rgba(245,166,35,0.09)", border: "rgba(245,166,35,0.4)", textColor: "#92580D", iconColor: "#F5A623", badge: "badge-needs-manual", badgeLabel: "⚠ Assign", dim: false },
+            Scheduled: { bg: colors.bg, border: colors.border, textColor: colors.text, iconColor: colors.text, badge: "badge-scheduled", badgeLabel: "On", dim: false },
+        };
+
+        const style = styleMap[status] ?? styleMap.Scheduled;
+
         return (
             <div
-                className={`schedule-block flex items-start gap-3 ${isCancelled ? "schedule-block-cancelled" : ""}`}
-                style={{
-                    background: isCancelled ? "rgba(239,68,68,0.07)" : colors.bg,
-                    border: `1.5px solid ${isCancelled ? "#ef4444" : colors.border}`,
-                }}
+                className={`schedule-block flex items-start gap-3 ${style.dim ? "schedule-block-cancelled" : ""}`}
+                style={{ background: style.bg, border: `1.5px solid ${style.border}` }}
             >
                 <div
                     className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center mt-0.5"
-                    style={{ background: isCancelled ? "rgba(239,68,68,0.15)" : colors.bg }}
+                    style={{ background: style.bg }}
                 >
-                    <Clock className="w-4 h-4" style={{ color: isCancelled ? "#ef4444" : colors.text }} />
+                    <Clock className="w-4 h-4" style={{ color: style.iconColor }} />
                 </div>
                 <div className="flex-1 min-w-0">
                     <p
-                        className={`text-sm font-semibold leading-tight ${isCancelled ? "line-through" : ""}`}
-                        style={{ color: isCancelled ? "#991b1b" : colors.text }}
+                        className={`text-sm font-semibold leading-tight ${style.dim ? "line-through" : ""}`}
+                        style={{ color: style.textColor }}
                     >
                         {s.subject.name}
                     </p>
-                    <p className="text-xs mt-0.5" style={{ color: isCancelled ? "#ef4444" : colors.text, opacity: 0.7 }}>
+                    <p className="text-xs mt-0.5" style={{ color: style.textColor, opacity: 0.8 }}>
                         {formatTime(s.startTime)} – {formatTime(s.endTime)}
                     </p>
                     <p className="text-xs mt-1" style={{ color: "#7A7A6E" }}>
-                        {s.classSection.name} · {s.teacher.name}
+                        {s.classSection.name} ·{" "}
+                        {status === "Substituted" && s.substituteTeacherName ? (
+                            <span className="font-semibold" style={{ color: "#0e7490" }}>
+                                🔄 {s.substituteTeacherName}
+                            </span>
+                        ) : (
+                            <span style={{ textDecoration: style.dim ? "line-through" : "none" }}>
+                                {s.teacher.name}
+                            </span>
+                        )}
                     </p>
                 </div>
-                <span className={isCancelled ? "badge-cancelled" : "badge-scheduled"}>
-                    {isCancelled ? "Cancelled" : "On"}
-                </span>
+                <span className={style.badge}>{style.badgeLabel}</span>
             </div>
         );
     };

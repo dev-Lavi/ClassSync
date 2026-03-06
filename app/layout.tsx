@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Link from "next/link";
-import { BookOpen, Users, CalendarCheck, LayoutDashboard, GraduationCap, CalendarPlus } from "lucide-react";
+import { BookOpen, Users, CalendarCheck, LayoutDashboard, GraduationCap, CalendarPlus, RefreshCw } from "lucide-react";
 
 export const metadata: Metadata = {
     title: "Class Schedule System",
@@ -16,6 +16,7 @@ const navLinks = [
     { href: "/subjects", label: "Subjects", icon: GraduationCap },
     { href: "/attendance", label: "Attendance", icon: CalendarCheck },
     { href: "/schedules", label: "Schedules", icon: BookOpen },
+    { href: "/substitutions", label: "Substitutions", icon: RefreshCw },
 ];
 
 export default function RootLayout({

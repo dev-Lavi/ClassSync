@@ -7,9 +7,9 @@ import Link from "next/link";
 import {
     ChevronLeft,
     ChevronRight,
-    Clock,
     BookOpen,
     ArrowLeft,
+    RefreshCw,
 } from "lucide-react";
 import { formatTime, getSubjectColor } from "@/lib/utils";
 
@@ -22,7 +22,20 @@ interface ScheduleEntry {
     subject: { name: string };
     classSection: { name: string };
     teacher: { name: string };
+    substituteTeacherName?: string;
+    substituteTeacherId?: string;
+    substituteAssignmentId?: string;
 }
+
+const STATUS_STYLE: Record<
+    string,
+    { badge: string; label: string; dim: boolean; accent: string }
+> = {
+    Scheduled: { badge: "badge-scheduled", label: "On", dim: false, accent: "" },
+    Substituted: { badge: "badge-substituted", label: "Substituted", dim: false, accent: "#0e7490" },
+    NeedsManual: { badge: "badge-needs-manual", label: "⚠ Assign", dim: false, accent: "#92580D" },
+    Cancelled: { badge: "badge-cancelled", label: "Cancelled", dim: true, accent: "#991b1b" },
+};
 
 export default function DaySchedulePage() {
     const params = useParams();
@@ -54,16 +67,13 @@ export default function DaySchedulePage() {
     }, [dateParam]);
 
     function navigate(delta: number) {
-        const newDate = addDays(parsedDate, delta);
-        router.push(`/schedules/day/${format(newDate, "yyyy-MM-dd")}`);
+        router.push(`/schedules/day/${format(addDays(parsedDate, delta), "yyyy-MM-dd")}`);
     }
 
-    const cancelledCount = schedules.filter(
-        (s) => s.dynamicStatus === "Cancelled"
-    ).length;
-    const scheduledCount = schedules.filter(
-        (s) => s.dynamicStatus === "Scheduled"
-    ).length;
+    const cancelledCount = schedules.filter((s) => s.dynamicStatus === "Cancelled").length;
+    const substitutedCount = schedules.filter((s) => s.dynamicStatus === "Substituted").length;
+    const needsManualCount = schedules.filter((s) => s.dynamicStatus === "NeedsManual").length;
+    const scheduledCount = schedules.filter((s) => s.dynamicStatus === "Scheduled").length;
 
     return (
         <div className="max-w-2xl mx-auto px-6 py-10 pb-24 md:pb-10">
@@ -87,9 +97,7 @@ export default function DaySchedulePage() {
                         <ChevronLeft className="w-5 h-5" />
                     </button>
                     <div className="text-center">
-                        <p className="font-display text-2xl">
-                            {format(parsedDate, "EEEE")}
-                        </p>
+                        <p className="font-display text-2xl">{format(parsedDate, "EEEE")}</p>
                         <p className="text-sm" style={{ color: "#7A7A6E" }}>
                             {format(parsedDate, "MMMM d, yyyy")}
                         </p>
@@ -105,18 +113,27 @@ export default function DaySchedulePage() {
                 {!loading && (
                     <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-black/5">
                         <div className="text-center">
-                            <p className="font-display text-2xl" style={{ color: "#1A6B4A" }}>
-                                {scheduledCount}
-                            </p>
-                            <p className="text-xs" style={{ color: "#7A7A6E" }}>Scheduled</p>
+                            <p className="font-display text-2xl" style={{ color: "#1A6B4A" }}>{scheduledCount}</p>
+                            <p className="text-xs" style={{ color: "#7A7A6E" }}>On</p>
                         </div>
-                        <div className="w-px h-8 bg-black/10" />
-                        <div className="text-center">
-                            <p className="font-display text-2xl text-red-500">
-                                {cancelledCount}
-                            </p>
-                            <p className="text-xs" style={{ color: "#7A7A6E" }}>Cancelled</p>
-                        </div>
+                        {substitutedCount > 0 && (
+                            <>
+                                <div className="w-px h-8 bg-black/10" />
+                                <div className="text-center">
+                                    <p className="font-display text-2xl" style={{ color: "#0e7490" }}>{substitutedCount}</p>
+                                    <p className="text-xs" style={{ color: "#7A7A6E" }}>Substituted</p>
+                                </div>
+                            </>
+                        )}
+                        {(cancelledCount > 0 || needsManualCount > 0) && (
+                            <>
+                                <div className="w-px h-8 bg-black/10" />
+                                <div className="text-center">
+                                    <p className="font-display text-2xl text-red-500">{cancelledCount + needsManualCount}</p>
+                                    <p className="text-xs" style={{ color: "#7A7A6E" }}>Needs Action</p>
+                                </div>
+                            </>
+                        )}
                         <div className="w-px h-8 bg-black/10" />
                         <div className="text-center">
                             <p className="font-display text-2xl">{schedules.length}</p>
@@ -138,18 +155,12 @@ export default function DaySchedulePage() {
                     ))}
                 </div>
             ) : error ? (
-                <div
-                    className="glass-card p-8 text-center"
-                    style={{ color: "#991b1b" }}
-                >
+                <div className="glass-card p-8 text-center" style={{ color: "#991b1b" }}>
                     {error}
                 </div>
             ) : schedules.length === 0 ? (
                 <div className="glass-card p-16 text-center">
-                    <BookOpen
-                        className="w-12 h-12 mx-auto mb-4"
-                        style={{ color: "#7A7A6E" }}
-                    />
+                    <BookOpen className="w-12 h-12 mx-auto mb-4" style={{ color: "#7A7A6E" }} />
                     <h2 className="font-display text-2xl mb-2">No classes</h2>
                     <p className="text-sm" style={{ color: "#7A7A6E" }}>
                         {format(parsedDate, "EEEE")} has no scheduled classes.
@@ -159,26 +170,42 @@ export default function DaySchedulePage() {
                 <div className="space-y-3 animate-fade-up animate-delay-80">
                     {schedules.map((s, idx) => {
                         const colors = getSubjectColor(idx);
+                        const st = STATUS_STYLE[s.dynamicStatus] ?? STATUS_STYLE.Scheduled;
+                        const isSubstituted = s.dynamicStatus === "Substituted";
                         const isCancelled = s.dynamicStatus === "Cancelled";
+                        const isNeedsManual = s.dynamicStatus === "NeedsManual";
+
+                        const cardBg =
+                            isSubstituted ? "rgba(6,182,212,0.07)" :
+                                isCancelled ? "rgba(239,68,68,0.06)" :
+                                    isNeedsManual ? "rgba(245,166,35,0.07)" :
+                                        colors.bg;
+
+                        const cardBorder =
+                            isSubstituted ? "rgba(6,182,212,0.35)" :
+                                isCancelled ? "#ef4444" :
+                                    isNeedsManual ? "rgba(245,166,35,0.4)" :
+                                        colors.border;
+
+                        const subjectColor =
+                            isSubstituted ? "#0e7490" :
+                                isCancelled ? "#991b1b" :
+                                    isNeedsManual ? "#92580D" :
+                                        colors.text;
+
                         return (
                             <div
                                 key={s.id}
-                                className={`glass-card-sm p-5 flex gap-4 items-start schedule-block ${isCancelled ? "schedule-block-cancelled" : ""
-                                    }`}
+                                className={`glass-card-sm p-5 flex gap-4 items-start schedule-block ${st.dim ? "schedule-block-cancelled" : ""}`}
                                 style={{
-                                    border: `1.5px solid ${isCancelled ? "#ef4444" : colors.border}`,
-                                    background: isCancelled
-                                        ? "rgba(239,68,68,0.06)"
-                                        : colors.bg,
+                                    border: `1.5px solid ${cardBorder}`,
+                                    background: cardBg,
                                     animationDelay: `${idx * 60}ms`,
                                 }}
                             >
                                 {/* Time column */}
                                 <div className="flex-shrink-0 text-center w-16">
-                                    <p
-                                        className="text-xs font-bold"
-                                        style={{ color: isCancelled ? "#ef4444" : colors.text }}
-                                    >
+                                    <p className="text-xs font-bold" style={{ color: subjectColor }}>
                                         {formatTime(s.startTime)}
                                     </p>
                                     <div className="w-px h-4 bg-black/10 mx-auto my-1" />
@@ -190,44 +217,87 @@ export default function DaySchedulePage() {
                                 {/* Details */}
                                 <div className="flex-1 min-w-0">
                                     <p
-                                        className={`font-semibold text-sm ${isCancelled ? "line-through" : ""}`}
-                                        style={{ color: isCancelled ? "#991b1b" : colors.text }}
+                                        className={`font-semibold text-sm ${st.dim ? "line-through" : ""}`}
+                                        style={{ color: subjectColor }}
                                     >
                                         {s.subject.name}
                                     </p>
                                     <p className="text-xs mt-1" style={{ color: "#7A7A6E" }}>
                                         {s.classSection.name}
                                     </p>
-                                    <p className="text-xs" style={{ color: "#7A7A6E" }}>
-                                        {s.teacher.name}
-                                    </p>
+
+                                    {/* Teacher info with substitution */}
+                                    {isSubstituted && s.substituteTeacherName ? (
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <span className="text-xs line-through" style={{ color: "#9ca3af" }}>
+                                                {s.teacher.name}
+                                            </span>
+                                            <RefreshCw className="w-3 h-3" style={{ color: "#06b6d4" }} />
+                                            <span className="text-xs font-semibold" style={{ color: "#0e7490" }}>
+                                                {s.substituteTeacherName}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <p
+                                            className="text-xs mt-0.5"
+                                            style={{
+                                                color: isCancelled ? "#9ca3af" : "#7A7A6E",
+                                                textDecoration: st.dim ? "line-through" : "none",
+                                            }}
+                                        >
+                                            {s.teacher.name}
+                                        </p>
+                                    )}
+
+                                    {/* NeedsManual action hint */}
+                                    {isNeedsManual && (
+                                        <Link
+                                            href="/substitutions"
+                                            className="inline-flex items-center gap-1 text-xs font-semibold mt-1"
+                                            style={{ color: "#92580D" }}
+                                        >
+                                            Assign substitute →
+                                        </Link>
+                                    )}
                                 </div>
 
-                                {/* Status */}
-                                <span
-                                    className={isCancelled ? "badge-cancelled" : "badge-scheduled"}
-                                >
-                                    {s.dynamicStatus}
-                                </span>
+                                {/* Status badge */}
+                                <span className={st.badge}>{st.label}</span>
                             </div>
                         );
                     })}
                 </div>
             )}
 
-            {/* Cancelled note */}
-            {!loading && cancelledCount > 0 && (
+            {/* Summary notes */}
+            {!loading && needsManualCount > 0 && (
                 <div
-                    className="mt-6 p-4 rounded-2xl text-sm animate-fade-up"
+                    className="mt-6 p-4 rounded-2xl text-sm animate-fade-up flex items-center justify-between"
                     style={{
-                        background: "rgba(239,68,68,0.07)",
-                        border: "1px solid rgba(239,68,68,0.2)",
-                        color: "#991b1b",
+                        background: "rgba(245,166,35,0.08)",
+                        border: "1.5px solid rgba(245,166,35,0.35)",
+                        color: "#92580D",
                     }}
                 >
-                    ⚠️ {cancelledCount} class
-                    {cancelledCount > 1 ? "es were" : " was"} auto-cancelled because the
-                    assigned teacher is absent or on leave today.
+                    <span>
+                        ⚠️ {needsManualCount} class{needsManualCount > 1 ? "es need" : " needs"} manual substitute assignment.
+                    </span>
+                    <Link href="/substitutions" className="font-semibold underline text-xs ml-4">
+                        Manage →
+                    </Link>
+                </div>
+            )}
+
+            {!loading && substitutedCount > 0 && (
+                <div
+                    className="mt-4 p-4 rounded-2xl text-sm animate-fade-up"
+                    style={{
+                        background: "rgba(6,182,212,0.07)",
+                        border: "1.5px solid rgba(6,182,212,0.25)",
+                        color: "#0e7490",
+                    }}
+                >
+                    ✅ {substitutedCount} class{substitutedCount > 1 ? "es were" : " was"} auto-assigned a substitute teacher.
                 </div>
             )}
         </div>

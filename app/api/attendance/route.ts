@@ -1,43 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { format, parseISO, isValid } from "date-fns";
+import { autoAssignSubstitutes, clearSubstitutions } from "@/lib/substitutionLogic";
 
-// POST /api/attendance — mark attendance
+// POST /api/attendance
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { teacherId, date, status } = body;
 
         if (!teacherId || !date || !status) {
-            return NextResponse.json(
-                { error: "teacherId, date, and status are required" },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: "teacherId, date, and status are required" }, { status: 400 });
         }
 
         const validStatuses = ["Present", "Absent", "Leave"];
         if (!validStatuses.includes(status)) {
-            return NextResponse.json(
-                { error: `status must be one of: ${validStatuses.join(", ")}` },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: `status must be one of: ${validStatuses.join(", ")}` }, { status: 400 });
         }
 
         const parsedDate = parseISO(date);
         if (!isValid(parsedDate)) {
-            return NextResponse.json(
-                { error: "Invalid date format. Use YYYY-MM-DD" },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD" }, { status: 400 });
         }
 
-        // Normalize to midnight UTC
         const dateOnly = new Date(format(parsedDate, "yyyy-MM-dd") + "T00:00:00.000Z");
-
         const teacher = await prisma.teacher.findUnique({ where: { id: teacherId } });
-        if (!teacher) {
-            return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
-        }
+        if (!teacher) return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
 
         const record = await prisma.teacherAttendance.upsert({
             where: { teacherId_date: { teacherId, date: dateOnly } },
@@ -46,13 +34,24 @@ export async function POST(req: NextRequest) {
             include: { teacher: { select: { name: true, email: true } } },
         });
 
-        return NextResponse.json({ data: record }, { status: 200 });
+        let substitutions: Awaited<ReturnType<typeof autoAssignSubstitutes>> = [];
+
+        if (status === "Absent" || status === "Leave") {
+            substitutions = await autoAssignSubstitutes(teacherId, parsedDate);
+        } else if (status === "Present") {
+            await clearSubstitutions(teacherId, parsedDate);
+        }
+
+        const autoAssignSummary = {
+            total: substitutions.length,
+            assigned: substitutions.filter((s) => s.status === "Assigned").length,
+            needsManual: substitutions.filter((s) => s.status === "NeedsManual").length,
+        };
+
+        return NextResponse.json({ data: record, substitutions, autoAssignSummary }, { status: 200 });
     } catch (error) {
         console.error("[POST /api/attendance]", error);
-        return NextResponse.json(
-            { error: "Failed to mark attendance" },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to mark attendance" }, { status: 500 });
     }
 }
 
@@ -63,23 +62,16 @@ export async function GET(req: NextRequest) {
         const dateStr = searchParams.get("date");
 
         if (!dateStr) {
-            return NextResponse.json(
-                { error: "date query parameter is required (format: YYYY-MM-DD)" },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: "date query parameter is required (format: YYYY-MM-DD)" }, { status: 400 });
         }
 
         const parsedDate = parseISO(dateStr);
         if (!isValid(parsedDate)) {
-            return NextResponse.json(
-                { error: "Invalid date format. Use YYYY-MM-DD" },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD" }, { status: 400 });
         }
 
         const dateOnly = new Date(format(parsedDate, "yyyy-MM-dd") + "T00:00:00.000Z");
 
-        // Fetch all teachers and their attendance for the date
         const teachers = await prisma.teacher.findMany({
             orderBy: { name: "asc" },
             include: {
@@ -103,9 +95,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ data: result, date: dateStr }, { status: 200 });
     } catch (error) {
         console.error("[GET /api/attendance]", error);
-        return NextResponse.json(
-            { error: "Failed to fetch attendance" },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to fetch attendance" }, { status: 500 });
     }
 }

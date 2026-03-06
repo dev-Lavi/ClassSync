@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkTeacherAndGetStatus } from "@/lib/scheduleLogic";
+import { annotateSchedulesWithStatus } from "@/lib/scheduleLogic";
 import {
     parseISO,
     isValid,
-    startOfWeek,
-    endOfWeek,
     addDays,
     format,
     parseISO as parse,
@@ -14,26 +12,15 @@ import {
 } from "date-fns";
 
 const DAY_ORDER = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
 ];
 
-/**
- * GET /api/schedules/[view]
- *
- * Query params:
- *  - view=day   &date=YYYY-MM-DD
- *  - view=week  &start=YYYY-MM-DD (Monday of the week)
- *  - view=month &month=YYYY-MM
- *
- * Each schedule entry is annotated with a dynamicStatus computed by checking
- * the teacher's attendance record for the relevant date.
- */
+const SCHEDULE_INCLUDE = {
+    teacher: { select: { id: true, name: true, email: true } },
+    subject: { select: { id: true, name: true } },
+    classSection: { select: { id: true, name: true } },
+} as const;
+
 export async function GET(
     req: NextRequest,
     { params }: { params: { view: string } }
@@ -42,65 +29,39 @@ export async function GET(
         const { searchParams } = new URL(req.url);
         const view = searchParams.get("view") ?? params.view;
 
-        // ── DAY VIEW ─────────────────────────────────────────────────────────────
+        // ── DAY VIEW ──────────────────────────────────────────────────────────────
         if (view === "day") {
             const dateStr = searchParams.get("date");
             if (!dateStr) {
-                return NextResponse.json(
-                    { error: "date query param required for day view (YYYY-MM-DD)" },
-                    { status: 400 }
-                );
+                return NextResponse.json({ error: "date required (YYYY-MM-DD)" }, { status: 400 });
             }
             const date = parseISO(dateStr);
-            if (!isValid(date)) {
-                return NextResponse.json({ error: "Invalid date" }, { status: 400 });
-            }
+            if (!isValid(date)) return NextResponse.json({ error: "Invalid date" }, { status: 400 });
 
             const dayOfWeek = format(date, "EEEE");
-
             const schedules = await prisma.classSchedule.findMany({
                 where: { dayOfWeek },
                 orderBy: { startTime: "asc" },
-                include: {
-                    teacher: { select: { id: true, name: true, email: true } },
-                    subject: { select: { id: true, name: true } },
-                    classSection: { select: { id: true, name: true } },
-                },
+                include: SCHEDULE_INCLUDE,
             });
 
-            const annotated = await Promise.all(
-                schedules.map(async (s) => ({
-                    ...s,
-                    dynamicStatus: await checkTeacherAndGetStatus(s.teacherId, date),
-                    date: dateStr,
-                    dayLabel: dayOfWeek,
-                }))
-            );
+            // Bulk annotate — one query for attendance + one for substitutions
+            const annotated = (await annotateSchedulesWithStatus(schedules, date))
+                .map((s) => ({ ...s, date: dateStr, dayLabel: dayOfWeek }));
 
-            return NextResponse.json(
-                { data: annotated, view: "day", date: dateStr },
-                { status: 200 }
-            );
+            return NextResponse.json({ data: annotated, view: "day", date: dateStr });
         }
 
         // ── WEEK VIEW ─────────────────────────────────────────────────────────────
         if (view === "week") {
             const startStr = searchParams.get("start");
             if (!startStr) {
-                return NextResponse.json(
-                    { error: "start query param required for week view (YYYY-MM-DD)" },
-                    { status: 400 }
-                );
+                return NextResponse.json({ error: "start required (YYYY-MM-DD)" }, { status: 400 });
             }
             const weekStart = parseISO(startStr);
-            if (!isValid(weekStart)) {
-                return NextResponse.json(
-                    { error: "Invalid start date" },
-                    { status: 400 }
-                );
-            }
+            if (!isValid(weekStart)) return NextResponse.json({ error: "Invalid start date" }, { status: 400 });
 
-            // Build day → date map for Mon–Fri of that week
+            // Build day → date map for Mon–Fri
             const dayDateMap: Record<string, Date> = {};
             for (let i = 0; i < 5; i++) {
                 const d = addDays(weekStart, i);
@@ -108,29 +69,27 @@ export async function GET(
             }
 
             const schedules = await prisma.classSchedule.findMany({
-                where: {
-                    dayOfWeek: { in: Object.keys(dayDateMap) },
-                },
-                orderBy: [{ startTime: "asc" }],
-                include: {
-                    teacher: { select: { id: true, name: true, email: true } },
-                    subject: { select: { id: true, name: true } },
-                    classSection: { select: { id: true, name: true } },
-                },
+                where: { dayOfWeek: { in: Object.keys(dayDateMap) } },
+                orderBy: { startTime: "asc" },
+                include: SCHEDULE_INCLUDE,
             });
 
-            const annotated = await Promise.all(
-                schedules.map(async (s) => {
-                    const date = dayDateMap[s.dayOfWeek];
-                    return {
-                        ...s,
-                        dynamicStatus: date
-                            ? await checkTeacherAndGetStatus(s.teacherId, date)
-                            : s.status,
-                        date: date ? format(date, "yyyy-MM-dd") : null,
-                    };
-                })
-            );
+            // Annotate per day using the bulk helper
+            const annotated: (typeof schedules[0] & {
+                dynamicStatus: string;
+                substituteTeacherName?: string;
+                substituteTeacherId?: string;
+                substituteAssignmentId?: string;
+                date: string | null;
+            })[] = [];
+
+            for (const [day, date] of Object.entries(dayDateMap)) {
+                const dayScheds = schedules.filter((s) => s.dayOfWeek === day);
+                const dayAnnotated = await annotateSchedulesWithStatus(dayScheds, date);
+                dayAnnotated.forEach((s) =>
+                    annotated.push({ ...s, date: format(date, "yyyy-MM-dd") })
+                );
+            }
 
             // Group by day
             const grouped = DAY_ORDER.filter((d) => dayDateMap[d]).reduce(
@@ -145,50 +104,32 @@ export async function GET(
                 {} as Record<string, { date: string; label: string; schedules: typeof annotated }>
             );
 
-            return NextResponse.json(
-                {
-                    data: grouped,
-                    flatData: annotated,
-                    view: "week",
-                    weekStart: startStr,
-                    weekEnd: format(addDays(weekStart, 6), "yyyy-MM-dd"),
-                },
-                { status: 200 }
-            );
+            return NextResponse.json({
+                data: grouped,
+                flatData: annotated,
+                view: "week",
+                weekStart: startStr,
+                weekEnd: format(addDays(weekStart, 6), "yyyy-MM-dd"),
+            });
         }
 
-        // ── MONTH VIEW ─────────────────────────────────────────────────────────────
+        // ── MONTH VIEW ────────────────────────────────────────────────────────────
         if (view === "month") {
-            const monthStr = searchParams.get("month"); // YYYY-MM
+            const monthStr = searchParams.get("month");
             if (!monthStr) {
-                return NextResponse.json(
-                    { error: "month query param required (YYYY-MM)" },
-                    { status: 400 }
-                );
+                return NextResponse.json({ error: "month required (YYYY-MM)" }, { status: 400 });
             }
-
             const monthDate = parse(`${monthStr}-01`);
-            if (!isValid(monthDate)) {
-                return NextResponse.json({ error: "Invalid month" }, { status: 400 });
-            }
+            if (!isValid(monthDate)) return NextResponse.json({ error: "Invalid month" }, { status: 400 });
 
             const monthStart = startOfMonth(monthDate);
             const monthEnd = endOfMonth(monthDate);
 
-            // Get all schedules (all days of week)
             const allSchedules = await prisma.classSchedule.findMany({
-                orderBy: [
-                    { dayOfWeek: "asc" },
-                    { startTime: "asc" },
-                ],
-                include: {
-                    teacher: { select: { id: true, name: true, email: true } },
-                    subject: { select: { id: true, name: true } },
-                    classSection: { select: { id: true, name: true } },
-                },
+                orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+                include: SCHEDULE_INCLUDE,
             });
 
-            // Build all dates in the month with their day of week
             const monthDates: Array<{ date: Date; dayOfWeek: string }> = [];
             let cursor = monthStart;
             while (cursor <= monthEnd) {
@@ -196,47 +137,33 @@ export async function GET(
                 cursor = addDays(cursor, 1);
             }
 
-            // For each day in month, annotate matching schedules
             const monthData = await Promise.all(
                 monthDates
                     .filter((d) => !["Saturday", "Sunday"].includes(d.dayOfWeek))
                     .map(async ({ date, dayOfWeek }) => {
-                        const daySchedules = allSchedules.filter(
-                            (s) => s.dayOfWeek === dayOfWeek
-                        );
-                        const annotated = await Promise.all(
-                            daySchedules.map(async (s) => ({
-                                ...s,
-                                dynamicStatus: await checkTeacherAndGetStatus(s.teacherId, date),
-                                date: format(date, "yyyy-MM-dd"),
-                            }))
-                        );
+                        const daySchedules = allSchedules.filter((s) => s.dayOfWeek === dayOfWeek);
+                        const annotated = (await annotateSchedulesWithStatus(daySchedules, date))
+                            .map((s) => ({ ...s, date: format(date, "yyyy-MM-dd") }));
                         return {
                             date: format(date, "yyyy-MM-dd"),
                             dayOfWeek,
                             label: format(date, "EEE, MMM d"),
                             schedules: annotated,
                             totalClasses: annotated.length,
-                            cancelledCount: annotated.filter((s) => s.dynamicStatus === "Cancelled").length,
+                            cancelledCount: annotated.filter(
+                                (s) => s.dynamicStatus === "Cancelled" || s.dynamicStatus === "NeedsManual"
+                            ).length,
+                            substitutedCount: annotated.filter((s) => s.dynamicStatus === "Substituted").length,
                         };
                     })
             );
 
-            return NextResponse.json(
-                { data: monthData, view: "month", month: monthStr },
-                { status: 200 }
-            );
+            return NextResponse.json({ data: monthData, view: "month", month: monthStr });
         }
 
-        return NextResponse.json(
-            { error: "Invalid view. Use: day | week | month" },
-            { status: 400 }
-        );
+        return NextResponse.json({ error: "Invalid view. Use: day | week | month" }, { status: 400 });
     } catch (error) {
         console.error(`[GET /api/schedules/${params.view}]`, error);
-        return NextResponse.json(
-            { error: "Failed to fetch schedule view" },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to fetch schedule view" }, { status: 500 });
     }
 }
