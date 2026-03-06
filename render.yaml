@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: classsync
+    runtime: node
+    region: singapore        # closest to India — change to oregon/frankfurt as needed
+    plan: free               # upgrade to starter ($7/mo) for always-on
+    buildCommand: npm ci && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/teachers
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false          # ← you will paste this in the Render dashboard
+      - key: DIRECT_URL
+        sync: false          # ← you will paste this in the Render dashboard
